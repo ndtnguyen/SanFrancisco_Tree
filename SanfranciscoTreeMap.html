@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <link rel="stylesheet" href="./tree.css">
+</head>
+
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-sm-12 col-md-12 col-lg-12">
+                <div class="col-sm-9 col-md-9 col-lg-9">
+                    <div id="myIllustration"></div>
+                    
+                </div>
+                <div class="col-sm-3 col-md-3 col-lg-3">
+                    DBH
+                    <div id="slidecontainer">
+                        <input type="range" min="1" max="140" value="70" class="slider" id="myRange">
+                    </div>
+                    <div id="demo"></div>
+                    <button id="chooseLocA" type="button" class="btn btn-primary">Click to choose location A</button>
+                    Enter the radiant of loc A: <input id="locAR" type="number" value=100>
+                    <button id="chooseLocB" type="button" class="btn btn-primary">Click to choose location B</button>
+                    Enter the radiant of loc B: <input id="locBR" type="number" value=50>
+                    <button id="filter" type="button" class="btn btn-primary">Filter</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</body>
+<script src="https://d3js.org/d3.v4.js"></script>
+<!-- jQuery library -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+
+<!-- Latest compiled JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+<!-- Read csv file -->
+<script>
+    var slider = document.getElementById("myRange");
+    var output = document.getElementById("demo");
+    var locA, locB;
+    var chooseLocA = document.getElementById("chooseLocA");
+    var chooseLocB = document.getElementById("chooseLocB");
+    var filter = document.getElementById("filter");
+    var locAR = document.getElementById("locAR");
+    var locBR = document.getElementById("locBR");
+    var pointA =[], pointB = [];
+    chooseLocA.onclick = function () {
+        locA = true;
+        locB = false;
+        chooseLocA.disabled = true;
+        chooseLocB.disabled = false;
+    }
+
+    
+    chooseLocB.onclick = function () {
+        locB = true;
+        locA = false;
+        chooseLocA.disabled = false;
+        chooseLocB.disabled = true;
+    }
+
+    var dataset = [];
+    d3.csv('./trees.csv', function (data) {
+
+        for (var i=0 ;i < data.length ; i++) {
+            if (data[i].Latitude == "" || data[i].Longitude == "") {
+                data.splice(i,1);
+            }
+        }
+       
+        // Set up size 
+        var width = 750, height = width;
+        
+        // Set up projection that map is using 
+        var projection = d3.geoMercator()
+            .center([-122.433701, 37.767683])
+            // San Francisco, roughly 	
+            .scale(225000)
+            .translate([width / 2, height / 2]);
+        
+        var svg = d3.select("#myIllustration").append("svg")
+            .attr("width", width)
+            .attr("height", height);
+        // Add svg map at correct size, assumes map is saved in a subdirectory called "data" 
+        svg.append("image")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("xlink:href", "./SanFranciscoCityWeb-Inkscape.svg");
+        
+        svg.selectAll("svg")
+                .data(data)
+                .enter()
+                .append("circle")
+                .attr("r", 2)
+                .attr("fill","brown")  
+                .attr("transform", function (d) { return "translate(" + projection([d.Longitude, d.Latitude]) + ")"; });
+    
+        //DBH SLIDER
+        slider.oninput = function () {
+            output.innerHTML = slider.value;
+        
+        d3.selectAll("circle")
+            .attr("r",function(d){
+                if (d.DBH > slider.value+3 || d.DBH < slider.value-3 ) {
+                        return 0;
+                    } else {
+                        return 2;
+                    }
+        });  
+    }
+    d3.select("svg").on("click", function () {
+        if (locA) {
+            pointA = d3.mouse(this);
+            
+            var oldLocA = d3.select("#locA");
+            if (oldLocA.empty()) {
+                
+                svg.append("circle")
+                .attr("cx", pointA[0])
+                .attr("cy", pointA[1])
+                .attr("r", locAR.value)
+                .attr("fill", "blue")
+                .attr('fill-opacity', 0.3)  
+                .attr('id', "locA");  
+            } else {
+                oldLocA.attr("cx", pointA[0])
+                        .attr("cy", pointA[1])
+            }        
+        }
+        if (locB) {
+            pointB = d3.mouse(this);
+            var oldLocB = d3.select("#locB");
+            if (oldLocB.empty()) {
+                
+                svg.append("circle")
+                .attr("cx", pointB[0])
+                .attr("cy", pointB[1])
+                .attr("r", locBR.value)
+                .attr("fill", "red")
+                .attr('fill-opacity', 0.3)  
+                .attr('id', "locB");  
+            } else {
+                oldLocB.attr("cx", pointB[0])
+                        .attr("cy", pointB[1])
+            }        
+        }
+              
+        });
+
+        //filter
+        filter.onclick = function () {
+            
+            var AB = Math.sqrt(Math.pow(pointB[0]-pointA[0],2)+Math.pow(pointB[1]-pointA[1],2));
+            console.log('filter',locAR.value,locBR.value,AB);
+            if (locAR.value+locBR.value >= AB) {
+                d3.selectAll("circle")
+                .attr("r", function (d) {
+                    var temp = [];
+                    temp = projection([d.Longitude,d.Latitude]);
+                    var xA = Math.sqrt(Math.pow(temp[0]-pointA[0],2)+Math.pow(temp[1]-pointA[1],2));
+                    var xB = Math.sqrt(Math.pow(temp[0]-pointB[0],2)+Math.pow(temp[1]-pointB[1],2));
+                    if (xA <= locAR.value && xB <= locBR.value) {
+                        return 2;
+                    } else {
+                        return 0;
+                    }
+                });  
+            }
+            
+        }   
+    });
+ 
+</script>
+
+</html>
